@@ -1,22 +1,15 @@
 /*
 _  ______   _____ _____ _____ _   _
-| |/ / ___| |_   _| ____/___ | | | |
-| ' / |  _    | | |  _|| |   | |_| |
-| . \ |_| |   | | | |__| |___|  _  |
-|_|\_\____|   |_| |_____\____|_| |_|
 
-ANYWAY, YOU MUST GIVE CREDIT TO MY CODE WHEN COPY IT
-CONTACT ME HERE +237656520674
-YT: KermHackTools
-Github: Kgtech-cmr
+𝐍𝐈𝐌𝐀-𝐌𝐃-𝐕𝟏
+
 */
-
 
 const { cmd } = require("../command");
 const moment = require("moment");
 
-let botStartTime = Date.now(); // Enregistrement de l'heure de démarrage du bot
-const ALIVE_IMG = "https://files.catbox.moe/zqoycp.jpg"; // Assurez-vous que cette URL est valide
+let botStartTime = Date.now(); // Bot start time record
+const ALIVE_VIDEO = "https://files.catbox.moe/obh10j.mp4"; // Replace with a valid video URL
 
 cmd({
     pattern: "alive",
@@ -26,7 +19,7 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { reply, from }) => {
     try {
-        const pushname = m.pushName || "User"; // Nom de l'utilisateur ou valeur par défaut
+        const pushname = m.pushName || "User";
         const currentTime = moment().format("HH:mm:ss");
         const currentDate = moment().format("dddd, MMMM Do YYYY");
 
@@ -47,15 +40,11 @@ Hi 🫵🏽 ${pushname}
 🎉 *Enjoy the Service!*
         `.trim();
 
-        // Vérifier si l'image est définie
-        if (!ALIVE_IMG || !ALIVE_IMG.startsWith("http")) {
-            throw new Error("Invalid ALIVE_IMG URL. Please set a valid image URL.");
-        }
-
-        // Envoyer le message avec image et légende
+        // Send the video message with caption
         await conn.sendMessage(from, {
-            image: { url: ALIVE_IMG }, // Assurez-vous que l'URL est valide
+            video: { url: ALIVE_VIDEO }, // Make sure this URL is a valid MP4/GIF
             caption: formattedInfo,
+            gifPlayback: true, // Enable GIF-like autoplay
             contextInfo: { 
                 mentionedJid: [m.sender],
                 forwardingScore: 999,
@@ -88,7 +77,6 @@ Hi 🫵🏽 ${pushname}
     } catch (error) {
         console.error("Error in alive command: ", error);
         
-        // Répondre avec des détails de l'erreur
         const errorMessage = `
 ❌ An error occurred while processing the alive command.
 🛠 *Error Details*:
