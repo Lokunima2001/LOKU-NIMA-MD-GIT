@@ -2,6 +2,9 @@ const { cmd } = require("../command");
 const yts = require("yt-search");
 const axios = require("axios");
 
+const axiosRetry = require('axios-retry'); // If you want to add retry mechanism
+axiosRetry(axios, { retries: 3, retryDelay: axiosRetry.exponentialDelay });
+
 cmd({
   pattern: "song",
   react: '🎵',
@@ -14,9 +17,6 @@ cmd({
     const searchQuery = args.join(" ");
     if (!searchQuery) return reply("❗Please provide a song name or YouTube link.");
     
-    // Debug: print the search query
-    console.log("Search Query:", searchQuery);
-
     // Searching for the video on YouTube using yt-search
     const searchResults = await yts(searchQuery);
     if (!searchResults.videos.length) return reply(`❌ No results found for "${searchQuery}".`);
@@ -24,9 +24,6 @@ cmd({
     const firstResult = searchResults.videos[0];
     const videoUrl = firstResult.url;
     const thumbnailUrl = firstResult.thumbnail;
-
-    // Debug: print the first result URL
-    console.log("First Result URL:", videoUrl);
 
     // Song details formatting
     const songDetails = `
@@ -47,24 +44,17 @@ cmd({
     // API URL to fetch the audio download link
     const apiUrl = `https://api.davidcyriltech.my.id/download/ytmp3?url=${videoUrl}`;
 
-    // Debug: print the API URL
-    console.log("API URL:", apiUrl);
-
     // Make API call to get download link
     let response;
     try {
       response = await axios.get(apiUrl);
-      // Check if the response status is OK
       if (response.status !== 200) {
         throw new Error(`Failed to fetch song. Status code: ${response.status}`);
       }
     } catch (apiErr) {
       console.error("API Error:", apiErr.message || apiErr);
-      return reply("❌ Failed to fetch song from the server. The server might be down. Please try again later.");
+      return reply("❌ Failed to fetch song from the server. The server might be down or unreachable. Please try again later.");
     }
-
-    // Debug: print the API response
-    console.log("API Response:", response.data);
 
     // Check if the API response contains a valid download_url
     if (!response.data.success || !response.data.result?.download_url) {
