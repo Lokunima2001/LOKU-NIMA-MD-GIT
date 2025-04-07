@@ -1,78 +1,91 @@
 const { cmd } = require("../command");
 const yts = require("yt-search");
 const axios = require("axios");
+const axiosRetry = require('axios-retry');
 
-const axiosRetry = require('axios-retry'); // If you want to add retry mechanism
+// Retry configuration
 axiosRetry(axios, { retries: 3, retryDelay: axiosRetry.exponentialDelay });
+
+// Extract YouTube Video ID from any type of link
+const getYoutubeVideoId = (url) => {
+  const ytRegex = /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/))([\w-]{11})/;
+  const match = url.match(ytRegex);
+  return match ? match[1] : null;
+};
 
 cmd({
   pattern: "song",
   react: '🎵',
-  desc: "Download audio from YouTube with details and thumbnail.",
+  desc: "Download audio from YouTube (supports Sinhala too).",
   category: "music",
-  use: ".song <song name or keywords>",
+  use: ".song <name or YouTube link>",
   filename: __filename
 }, async (conn, mek, msg, { from, args, reply }) => {
   try {
     const searchQuery = args.join(" ");
     if (!searchQuery) return reply("❗Please provide a song name or YouTube link.");
-    
-    // Searching for the video on YouTube using yt-search
-    const searchResults = await yts(searchQuery);
-    if (!searchResults.videos.length) return reply(`❌ No results found for "${searchQuery}".`);
 
-    const firstResult = searchResults.videos[0];
-    const videoUrl = firstResult.url;
-    const thumbnailUrl = firstResult.thumbnail;
+    let videoUrl;
+    let videoInfo;
 
-    // Song details formatting
+    const isYoutubeLink = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\//i.test(searchQuery);
+
+    if (isYoutubeLink) {
+      const ytID = getYoutubeVideoId(searchQuery);
+      if (!ytID) return reply("❌ Invalid YouTube link.");
+
+      const searchById = await yts({ videoId: ytID });
+      if (!searchById || !searchById.title) return reply("❌ Could not find the video.");
+
+      videoInfo = searchById;
+      videoUrl = `https://www.youtube.com/watch?v=${ytID}`;
+    } else {
+      const searchResults = await yts(searchQuery);
+      if (!searchResults.videos.length) return reply(`❌ No results found for "${searchQuery}".`);
+
+      videoInfo = searchResults.videos[0];
+      videoUrl = videoInfo.url;
+    }
+
+    // Send song details
     const songDetails = `
-🎵 *Song Found!*
+🎶 *Song Found!*
 
-📌 *Title:* ${firstResult.title}
-⏳ *Duration:* ${firstResult.timestamp}
-👁 *Views:* ${firstResult.views}
-🎤 *Author:* ${firstResult.author.name}
+📌 *Title:* ${videoInfo.title}
+⏱ *Duration:* ${videoInfo.timestamp}
+👀 *Views:* ${videoInfo.views}
+🎤 *Author:* ${videoInfo.author.name}
 `;
 
-    // Send song details and thumbnail image
     await conn.sendMessage(from, {
-      image: { url: thumbnailUrl },
+      image: { url: videoInfo.thumbnail },
       caption: songDetails.trim()
     }, { quoted: mek });
 
-    // API URL to fetch the audio download link
-    const apiUrl = `https://api.davidcyriltech.my.id/download/ytmp3?url=${videoUrl}`;
+    reply("⏬ Downloading audio, please wait...");
 
-    // Make API call to get download link
-    let response;
-    try {
-      response = await axios.get(apiUrl);
-      if (response.status !== 200) {
-        throw new Error(`Failed to fetch song. Status code: ${response.status}`);
-      }
-    } catch (apiErr) {
-      console.error("API Error:", apiErr.message || apiErr);
-      return reply("❌ Failed to fetch song from the server. The server might be down or unreachable. Please try again later.");
+    // Use Sinhala-compatible ytmp3 API
+    const apiUrl = `https://aemt.me/download/ytmp3?url=${videoUrl}`;
+    const response = await axios.get(apiUrl);
+
+    if (!response.data?.url) {
+      console.log("API Error:", response.data);
+      return reply("❌ Failed to fetch download link. Try another song.");
     }
 
-    // Check if the API response contains a valid download_url
-    if (!response.data.success || !response.data.result?.download_url) {
-      return reply("❌ Failed to download the song. The server returned an invalid response.");
-    }
+    const { url, title, filesize } = response.data;
+    const caption = `🎵 *${title || 'Audio'}*\n💾 ${filesize || ''}`;
 
-    const { download_url } = response.data.result;
-
-    // Send the audio file to the user
+    // Send the audio
     await conn.sendMessage(from, {
-      audio: { url: download_url },
+      audio: { url },
       mimetype: 'audio/mp4',
+      fileName: `${title || 'song'}.mp3`,
       ptt: false
     }, { quoted: mek });
 
   } catch (error) {
-    // Handle unexpected errors
-    console.error("Song Plugin Error:", error?.message || error);
-    reply(`❌ An error occurred: ${error?.message || 'Something went wrong. Please try again later.'}`);
+    console.error("Song command error:", error);
+    reply("❌ An unexpected error occurred. Please try again.");
   }
 });
